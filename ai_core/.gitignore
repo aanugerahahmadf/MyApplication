@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Data and Models
+data/*.json
+data/*.pkl
+models/*.pth
+models/*.h5
+models/*.weights
+
+# Temp
+temp/
+debug/

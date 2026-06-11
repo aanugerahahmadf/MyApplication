@@ -1,0 +1,80 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Withdrawal;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+class WalletController extends Controller
+{
+    public function getWalletData(Request $request)
+    {
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'balance' => $request->user()->balance,
+            ],
+        ]);
+    }
+
+    public function requestWithdrawal(Request $request)
+    {
+        $request->validate([
+            'amount' => 'required|numeric|min:10000',
+            'bank_name' => 'required|string',
+            'account_number' => 'required|string',
+            'account_holder' => 'required|string',
+            'notes' => 'nullable|string',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $user = $request->user();
+            $amount = $request->amount;
+
+            if ($user->balance < $amount) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => __('Saldo Anda tidak mencukupi untuk penarikan ini'),
+                ], 400);
+            }
+
+            $withdrawal = Withdrawal::create([
+                'user_id' => $user->id,
+                'reference_number' => 'WD-'.time().'-'.strtoupper(Str::random(5)),
+                'amount' => $amount,
+                'admin_fee' => 0, // Set fixed fee or calculate if necessary
+                'total_amount' => $amount,
+                'bank_name' => $request->bank_name,
+                'account_number' => $request->account_number,
+                'account_holder' => $request->account_holder,
+                'status' => 'pending',
+                'notes' => $request->notes,
+            ]);
+
+            // Deduct balance immediately
+            $user->decrement('balance', $amount);
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => __('Permintaan penarikan dana berhasil dibuat'),
+                'data' => $withdrawal,
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'status' => 'error',
+                'message' => __('Gagal membuat permintaan penarikan dana'),
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+}
